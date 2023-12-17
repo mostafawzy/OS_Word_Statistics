@@ -17,9 +17,12 @@ public class WordStatisticsApp extends JFrame {
     private final JButton start_Button;
     private final DefaultTableModel table;
     private final JTable statisticsTable1;
+    
     private final List<File> filesToProcess = new ArrayList<>();
     private final Object lock = new Object();
-    private int currentFileIndex = 0;
+    
+    private int currentFileIndex ;
+    
     public WordStatisticsApp() {
         setTitle("Word Statistics Calculator");
         setSize(800, 400);
@@ -45,8 +48,6 @@ public class WordStatisticsApp extends JFrame {
         inputPanel.add(start_Button);
         
           
-          
-
         tableModel = new DefaultTableModel(new String[]{"File Name", "# Words", "Longest Word", "Shortest Word", "# is", "# are", "# you"}, 0);
         statisticsTable = new JTable(tableModel);
         JScrollPane scrollPane = new JScrollPane(statisticsTable);
@@ -60,12 +61,8 @@ public class WordStatisticsApp extends JFrame {
 
         panel.setBorder(new EmptyBorder(10, 10, 30, 10));
         add(panel);
-         
-        
-
     }
     
-
     File selectedDirectory;
     boolean includeSubdirectories = false;
 
@@ -80,22 +77,17 @@ public class WordStatisticsApp extends JFrame {
             includeSubdirectories = includeSubdirectoriesCheckbox.isSelected();
         }
     }
-    private String globalLongestWord = "";
-    private String globalShortestWord = ""; 
+    private String globalLongestWord ;
+    private String globalShortestWord ; 
     
     public void startprocess() {
-    tableModel.setRowCount(0);
     currentFileIndex = 0;
-    filesToProcess.clear();
-    
     // Reset global statistics variables
     globalLongestWord = "";
     globalShortestWord = "";
     
     processDirectory(selectedDirectory, includeSubdirectories);
-    startProcessingThreads();
 }
-    
     private void processDirectory(File directory, boolean includeSubdirectories) {
         tableModel.setRowCount(0); 
         table.setRowCount(0); // Clear previous directory statistics
@@ -111,7 +103,6 @@ public class WordStatisticsApp extends JFrame {
     
     private void processFilesInDirectory(File directory, boolean includeSubdirectories) {
         File[] files = directory.listFiles();
-
         if (files != null) {
             for (File file : files) {
                 if (file.isFile() && file.getName().endsWith(".txt")) {
@@ -125,30 +116,6 @@ public class WordStatisticsApp extends JFrame {
             }
         }
     }
-    private void startProcessingThreads() {
-        int numThreads = 5; 
-
-        List<Thread> threads = new ArrayList<>();
-
-        for (int i = 0; i < numThreads; i++) {
-            Thread thread = new Thread(new FileProcessor());
-            threads.add(thread);
-            thread.start();
-        }
-
-        for (Thread thread : threads) {
-            try {
-                thread.join();
-            } catch (InterruptedException e) {
-            }
-        }
-        
-        updateDirectoryStatistics(selectedDirectory);
-
-        updateGlobalStatistics();
-    }
-
-     
     
     private class FileProcessor implements Runnable {
         @Override
@@ -182,66 +149,56 @@ public class WordStatisticsApp extends JFrame {
             }
         }
     }
-    private void updateDirectoryStatistics(File directory) {
-        WordStats directoryStats = new WordStats();
+    
+    private void startProcessingThreads() {
+        int numThreads = 5; 
 
-        for (int i = 0; i < tableModel.getRowCount(); i++) {
-            String fileName = (String) tableModel.getValueAt(i, 0);
-            if (fileName.equals("All Directories") || fileName.equals("Total")) {
-                continue;
-            }
+        List<Thread> threads = new ArrayList<>();
 
-            // Check if the file belongs to the current directory
-            if (new File(selectedDirectory, fileName).equals(directory)) {
-                String longestWord = (String) tableModel.getValueAt(i, 2);
-                String shortestWord = (String) tableModel.getValueAt(i, 3);
-
-                directoryStats.updateFromRow(longestWord, shortestWord);
-            }
+        for (int i = 0; i < numThreads; i++) {
+            Thread thread = new Thread(new FileProcessor());
+            threads.add(thread);
+            thread.start();
         }
 
-        // Add or update the row for the current directory in the directory statistics table
-        boolean directoryRowExists = false;
-        for (int i = 0; i < table.getRowCount(); i++) {
-            if (table.getValueAt(i, 0).equals(directory.getAbsolutePath())) {
-                directoryRowExists = true;
-                table.setValueAt(directoryStats.getLongestWord(), i, 1);
-                table.setValueAt(directoryStats.getShortestWord(), i, 2);
-                break;
+        for (Thread thread : threads) {
+            try {
+                thread.join();
+            } catch (InterruptedException e) {
             }
         }
-
-        if (!directoryRowExists) {
-            table.addRow(new Object[]{directory.getAbsolutePath(), directoryStats.getLongestWord(), directoryStats.getShortestWord()});
-        }
+        updateGlobalStatistics();
     }
-  private void updateGlobalStatistics() {
-    // Check if the row already exists in the table for global statistics
-    int globalRowIndex = -1;
-    int directoryRowIndex = -1;
+ private void updateGlobalStatistics() {
+    int globalRowIndex = findRowIndex("All");
+    int directoryRowIndex = findRowIndex(selectedDirectory.getAbsolutePath());
 
-    for (int i = 0; i < table.getRowCount(); i++) {
-        if (table.getValueAt(i, 0).equals("All")) {
-            globalRowIndex = i;
-        } else if (table.getValueAt(i, 0).equals(selectedDirectory.getAbsolutePath())) {
-            directoryRowIndex = i;
-        }
-    }
-
-    // If the directory row exists, remove it
     if (directoryRowIndex != -1) {
         table.removeRow(directoryRowIndex);
     }
 
-    // If the global row exists, update it; otherwise, add a new row
     if (globalRowIndex != -1) {
-        table.setValueAt(globalLongestWord, globalRowIndex, 1);
-        table.setValueAt(globalShortestWord, globalRowIndex, 2);
+        updateRow(globalRowIndex, globalLongestWord, globalShortestWord);
     } else {
-        // Add the new row to the table
-        table.addRow(new Object[]{"All", globalLongestWord, globalShortestWord});
+        addNewRow("All", globalLongestWord, globalShortestWord);
     }
 }
+private int findRowIndex(String label) {
+    for (int i = 0; i < table.getRowCount(); i++) {
+        if (table.getValueAt(i, 0).equals(label)) {
+            return i;
+        }
+    }
+    return -1;
+}
+private void updateRow(int rowIndex, Object longestWord, Object shortestWord) {
+    table.setValueAt(longestWord, rowIndex, 1);
+    table.setValueAt(shortestWord, rowIndex, 2);
+}
+private void addNewRow(String label, Object longestWord, Object shortestWord) {
+    table.addRow(new Object[]{label, longestWord, shortestWord});
+}
+
 
 private WordStats processFile(File file) {
         WordStats wordStats = new WordStats();
@@ -364,16 +321,6 @@ private WordStats processFile(File file) {
             this.youCount = youCount;
         }
 
-        // Update statistics based on the provided values
-        public void updateFromRow(String longestWord, String shortestWord) {
-            if (longestWord.length() > this.longestWord.length()) {
-                this.longestWord = longestWord;
-            }
-
-            if (shortestWord.length() < this.shortestWord.length()) {
-                this.shortestWord = shortestWord;
-            }
-        }
+       
     }
-
 }
